@@ -1,28 +1,81 @@
-name: Advanced Terminal Runner
+name: Build Universal APK
 
 on:
   workflow_dispatch:
-    inputs:
-      script:
-        description: "Script shell (multi-line)"
-        required: true
-        default: |
-          echo "Hello"
-          pwd
-          ls -la
 
 jobs:
-  run:
+  build:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Run Script
-        shell: bash
+      - name: Install dependencies
         run: |
-          cat << 'EOF' > user_script.sh
-          ${{ github.event.inputs.script }}
-          EOF
-          chmod +x user_script.sh
-          ./user_script.sh
+          sudo apt update
+          sudo apt install -y apktool zipalign apksigner unzip openjdk-17-jdk
+
+      - name: Extract split zip
+        run: |
+          mkdir split
+          unzip split.zip -d split
+
+      - name: Decompile base APK
+        run: |
+          apktool d split/base.apk -o base
+
+      - name: Disable split flag
+        run: |
+          sed -i 's/isSplitApk: true/isSplitApk: false/g' base/apktool.yml
+
+      - name: Merge ABI + DPI + Language splits
+        run: |
+          for file in split/split_config*.apk; do
+            apktool d "$file" -o temp
+            if [ -d temp/lib ]; then
+              mkdir -p base/lib
+              cp -r temp/lib/* base/lib/
+            fi
+            if [ -d temp/res ]; then
+              cp -r temp/res/* base/res/
+            fi
+            rm -rf temp
+          done
+
+      - name: Build universal APK
+        run: |
+          apktool b base -o universal-unsigned.apk
+
+      - name: Generate debug keystore
+        run: |
+          keytool -genkey -v -keystore debug.keystore \
+          -storepass android \
+          -alias androiddebugkey \
+          -keypass android \
+          -keyalg RSA \
+          -keysize 2048 \
+          -validity 10000 \
+          -dname "CN=Android,O=Android,C=US"
+
+      - name: Align APK
+        run: |
+          zipalign -v 4 universal-unsigned.apk universal-aligned.apk
+
+      - name: Sign APK
+        run: |
+          apksigner sign \
+          --ks debug.keystore \
+          --ks-pass pass:android \
+          --key-pass pass:android \
+          universal-aligned.apk
+
+      - name: Verify signature
+        run: |
+          apksigner verify universal-aligned.apk
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: universal-apk
+          path: universal-aligned.apk
