@@ -21,7 +21,6 @@ jobs:
       - name: Run Script
         shell: bash
         run: |
-          echo "=== START SCRIPT ==="
           cat << 'EOF' > user_script.sh
           ${{ github.event.inputs.script }}
           EOF
