@@ -1,37 +1,29 @@
-name: Remote Shell Pro
+name: Advanced Terminal Runner
 
 on:
   workflow_dispatch:
     inputs:
-      command:
-        description: "Command to execute"
+      script:
+        description: "Script shell (multi-line)"
         required: true
+        default: |
+          echo "Hello"
+          pwd
+          ls -la
 
 jobs:
-  execute:
+  run:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run Persistent Command
+      - name: Run Script
+        shell: bash
         run: |
-          set +x
-
-          echo "===OUTPUT_START==="
-
-          if [ -f .gh_state ]; then
-            CURRENT_DIR=$(cat .gh_state)
-          else
-            CURRENT_DIR=$GITHUB_WORKSPACE
-          fi
-
-          cd "$CURRENT_DIR"
-
-          OUTPUT=$(bash -c "${{ github.event.inputs.command }}" 2>&1)
-
-          echo "$OUTPUT"
-
-          pwd > .gh_state
-
-          echo "===OUTPUT_END==="
+          echo "=== START SCRIPT ==="
+          cat << 'EOF' > user_script.sh
+          ${{ github.event.inputs.script }}
+          EOF
+          chmod +x user_script.sh
+          ./user_script.sh
