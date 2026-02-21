@@ -1,0 +1,40 @@
+name: Remote Terminal Runner
+
+on:
+  workflow_dispatch:
+    inputs:
+      os:
+        description: "Pilih OS runner"
+        required: true
+        default: "ubuntu-latest"
+        type: choice
+        options:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+
+      command:
+        description: "Masukkan perintah terminal"
+        required: true
+        default: "echo Hello World"
+
+jobs:
+  run-command:
+    runs-on: ${{ github.event.inputs.os }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Show Environment Info
+        run: |
+          echo "Runner OS: $RUNNER_OS"
+          echo "User: $(whoami)"
+          echo "Current Directory: $(pwd)"
+
+      - name: Execute User Command
+        run: |
+          echo "Menjalankan perintah:"
+          echo "${{ github.event.inputs.command }}"
+          echo "---------------------------"
+          ${{ github.event.inputs.command }}
