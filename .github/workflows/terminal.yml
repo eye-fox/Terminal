@@ -11,10 +11,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Install latest Apktool
         run: |
-          sudo apt update
-          sudo apt install -y apktool zipalign apksigner unzip openjdk-17-jdk
+              sudo apt update
+              sudo apt install -y unzip zipalign apksigner openjdk-17-jdk
+              curl -L -o apktool.jar https://bitbucket.org/iBotPeaches/apktool/downloads/apktool_2.9.3.jar
+              curl -L -o apktool https://raw.githubusercontent.com/iBotPeaches/Apktool/master/scripts/linux/apktool
+              chmod +x apktool
+              sudo mv apktool /usr/local/bin/
+              sudo mv apktool.jar /usr/local/bin/
 
       - name: Extract split zip
         run: |
