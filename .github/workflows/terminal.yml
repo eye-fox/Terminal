@@ -67,7 +67,7 @@ jobs:
       # ✅ Build using aapt2 (required for modern apps)
       - name: Build universal APK
         run: |
-          apktool b base -o universal-unsigned.apk --use-aapt2
+          apktool b base -o universal-unsigned.apk
 
       # ✅ Generate debug keystore
       - name: Generate debug keystore
