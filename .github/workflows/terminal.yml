@@ -1,62 +1,67 @@
-name: Build Universal APK (Bundletool)
+name: Build Universal APK from APKS
 
 on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-universal:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Setup Java 21
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '21'
 
-      - name: Install Dependencies
-        run: sudo apt update && sudo apt install -y unzip wget
+      - name: Install zip tools
+        run: |
+          sudo apt update
+          sudo apt install -y zipalign unzip
 
       - name: Download bundletool
         run: |
           wget https://github.com/google/bundletool/releases/download/1.18.2/bundletool-all-1.18.2.jar -O bundletool.jar
 
-      - name: Generate Debug Keystore
+      - name: Create output folders
+        run: |
+          mkdir -p extracted universal
+
+      - name: Extract Universal APK from APKS
+        run: |
+          java -jar bundletool.jar extract-apks \
+            --apks=your_app.apks \
+            --output-dir=extracted \
+            --mode=universal
+
+      - name: Locate universal APK
+        run: |
+          UNIVERSAL_APK=$(find extracted -name "*universal.apk" | head -n1)
+          echo "UNIVERSAL_APK=$UNIVERSAL_APK" >> $GITHUB_ENV
+
+      - name: Generate debug keystore
         run: |
           keytool -genkey -v -keystore debug.keystore \
-          -storepass android -alias androiddebugkey \
-          -keypass android -keyalg RSA -keysize 2048 \
-          -validity 10000 -dname "CN=Android,O=Android,C=US"
+            -storepass android -alias androiddebugkey \
+            -keypass android -keyalg RSA -keysize 2048 \
+            -validity 10000 -dname "CN=Android,O=Android,C=US"
 
-      - name: Extract split.zip
+      - name: Align universal APK
         run: |
-          mkdir split
-          unzip split.zip -d split
+          zipalign -v 4 "$UNIVERSAL_APK" universal-aligned.apk
 
-      - name: Build Universal APKS
+      - name: Sign universal APK
         run: |
-          java -jar bundletool.jar build-apks \
-            --mode=universal \
-            --output=output.apks \
-            --apks=split/base.apk \
-            --apks=split/split_config.arm64_v8a.apk \
-            --apks=split/split_config.in.apk \
-            --apks=split/split_config.ms.apk \
-            --apks=split/split_config.xxhdpi.apk \
-            --ks=debug.keystore \
-            --ks-pass=pass:android \
-            --ks-key-alias=androiddebugkey \
-            --key-pass=pass:android
+          apksigner sign --ks debug.keystore \
+            --ks-pass pass:android \
+            --key-pass pass:android \
+            universal-aligned.apk
 
-      - name: Extract Universal APK
-        run: |
-          unzip output.apks -d extracted
-          mv extracted/universal.apk universal.apk
-
-      - name: Upload Artifact
+      - name: Upload Universal APK
         uses: actions/upload-artifact@v4
         with:
           name: universal-apk
-          path: universal.apk
+          path: universal-aligned.apk
