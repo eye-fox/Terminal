@@ -12,6 +12,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - uses: actions/checkout@v4
+
       - name: Run Persistent Command
         run: |
           set +x
@@ -21,7 +23,7 @@ jobs:
           if [ -f .gh_state ]; then
             CURRENT_DIR=$(cat .gh_state)
           else
-            CURRENT_DIR=$HOME
+            CURRENT_DIR=$GITHUB_WORKSPACE
           fi
 
           cd "$CURRENT_DIR"
