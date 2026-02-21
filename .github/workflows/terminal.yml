@@ -11,30 +11,46 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install latest Apktool
-        run: |
-              sudo apt update
-              sudo apt install -y unzip zipalign apksigner openjdk-17-jdk
-              curl -L -o apktool.jar https://bitbucket.org/iBotPeaches/apktool/downloads/apktool_2.9.3.jar
-              curl -L -o apktool https://raw.githubusercontent.com/iBotPeaches/Apktool/master/scripts/linux/apktool
-              chmod +x apktool
-              sudo mv apktool /usr/local/bin/
-              sudo mv apktool.jar /usr/local/bin/
+      # ✅ Setup Java (modern & clean)
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
 
+      # ✅ Install required system tools
+      - name: Install system dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y unzip zipalign apksigner curl
+
+      # ✅ Install Apktool 2.12.0 (latest stable)
+      - name: Install Apktool 2.12.0
+        run: |
+          curl -L -o apktool.jar https://bitbucket.org/iBotPeaches/apktool/downloads/apktool_2.12.0.jar
+          curl -L -o apktool https://raw.githubusercontent.com/iBotPeaches/Apktool/master/scripts/linux/apktool
+          chmod +x apktool
+          sudo mv apktool /usr/local/bin/
+          sudo mv apktool.jar /usr/local/bin/
+
+      # ✅ Extract split APK zip
       - name: Extract split zip
         run: |
           mkdir split
           unzip split.zip -d split
 
+      # ✅ Decompile base
       - name: Decompile base APK
         run: |
           apktool d split/base.apk -o base
 
+      # ✅ Disable split flag (important)
       - name: Disable split flag
         run: |
           sed -i 's/isSplitApk: true/isSplitApk: false/g' base/apktool.yml
 
-      - name: Merge ABI + DPI + Language splits
+      # ✅ Merge ABI + DPI + Language splits
+      - name: Merge splits
         run: |
           for file in split/split_config*.apk; do
             apktool d "$file" -o temp
@@ -48,10 +64,12 @@ jobs:
             rm -rf temp
           done
 
+      # ✅ Build using aapt2 (required for modern apps)
       - name: Build universal APK
         run: |
-          apktool b base -o universal-unsigned.apk
+          apktool b base -o universal-unsigned.apk --use-aapt2
 
+      # ✅ Generate debug keystore
       - name: Generate debug keystore
         run: |
           keytool -genkey -v -keystore debug.keystore \
@@ -63,10 +81,12 @@ jobs:
           -validity 10000 \
           -dname "CN=Android,O=Android,C=US"
 
+      # ✅ Align APK
       - name: Align APK
         run: |
           zipalign -v 4 universal-unsigned.apk universal-aligned.apk
 
+      # ✅ Sign APK
       - name: Sign APK
         run: |
           apksigner sign \
@@ -75,10 +95,12 @@ jobs:
           --key-pass pass:android \
           universal-aligned.apk
 
-      - name: Verify signature
+      # ✅ Verify signature
+      - name: Verify APK
         run: |
           apksigner verify universal-aligned.apk
 
+      # ✅ Upload result
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
