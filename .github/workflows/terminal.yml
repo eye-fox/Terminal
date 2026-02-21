@@ -12,27 +12,24 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Restore State
-        run: |
-          if [ -f .gh_state ]; then
-            echo "State exists"
-          else
-            echo "$HOME" > .gh_state
-          fi
-
       - name: Run Persistent Command
         run: |
+          set +x
+
           echo "===OUTPUT_START==="
-          CURRENT_DIR=$(cat .gh_state 2>/dev/null || echo $HOME)
+
+          if [ -f .gh_state ]; then
+            CURRENT_DIR=$(cat .gh_state)
+          else
+            CURRENT_DIR=$HOME
+          fi
+
           cd "$CURRENT_DIR"
 
-          bash -c "${{ github.event.inputs.command }}"
+          OUTPUT=$(bash -c "${{ github.event.inputs.command }}" 2>&1)
+
+          echo "$OUTPUT"
 
           pwd > .gh_state
-          echo "===OUTPUT_END==="
 
-      - name: Upload State
-        uses: actions/upload-artifact@v4
-        with:
-          name: gh_state
-          path: .gh_state
+          echo "===OUTPUT_END==="
