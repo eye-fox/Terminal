@@ -30,16 +30,25 @@ jobs:
         run: |
           mkdir -p extracted universal
 
+      - name: Create dummy device spec
+        run: |
+          echo '{
+            "supportedAbis": ["arm64-v8a","armeabi-v7a"],
+            "supportedLocales": ["en","in","ms"],
+            "screenDensity": 440,
+            "sdkVersion": 33
+          }' > device.json
+
       - name: Extract Universal APK from APKS
         run: |
           java -jar bundletool.jar extract-apks \
             --apks=your_app.apks \
-            --output-dir=extracted \
-            --mode=universal
+            --output-dir=universal \
+            --device-spec=device.json
 
       - name: Locate universal APK
         run: |
-          UNIVERSAL_APK=$(find extracted -name "*universal.apk" | head -n1)
+          UNIVERSAL_APK=$(find universal -name "*.apk" | head -n1)
           echo "UNIVERSAL_APK=$UNIVERSAL_APK" >> $GITHUB_ENV
 
       - name: Generate debug keystore
