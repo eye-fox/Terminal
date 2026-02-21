@@ -21,7 +21,7 @@ jobs:
 
       - name: Download bundletool
         run: |
-          wget https://github.com/google/bundletool/releases/latest/download/bundletool-all.jar -O bundletool.jar
+          wget https://github.com/google/bundletool/releases/download/1.18.2/bundletool-all-1.18.2.jar -O bundletool.jar
 
       - name: Generate Debug Keystore
         run: |
