@@ -1,4 +1,4 @@
-name: Build Universal APK
+name: Build Universal APK (Bundletool)
 
 on:
   workflow_dispatch:
@@ -8,101 +8,55 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      # ✅ Setup Java (modern & clean)
-      - name: Setup Java
+      - name: Setup Java 21
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '21'
 
-      # ✅ Install required system tools
-      - name: Install system dependencies
-        run: |
-          sudo apt update
-          sudo apt install -y unzip zipalign apksigner curl
+      - name: Install Dependencies
+        run: sudo apt update && sudo apt install -y unzip wget
 
-      # ✅ Install Apktool 2.12.0 (latest stable)
-      - name: Install Apktool 2.12.0
+      - name: Download bundletool
         run: |
-          curl -L -o apktool.jar https://bitbucket.org/iBotPeaches/apktool/downloads/apktool_2.12.0.jar
-          curl -L -o apktool https://raw.githubusercontent.com/iBotPeaches/Apktool/master/scripts/linux/apktool
-          chmod +x apktool
-          sudo mv apktool /usr/local/bin/
-          sudo mv apktool.jar /usr/local/bin/
+          wget https://github.com/google/bundletool/releases/latest/download/bundletool-all.jar -O bundletool.jar
 
-      # ✅ Extract split APK zip
-      - name: Extract split zip
+      - name: Generate Debug Keystore
+        run: |
+          keytool -genkey -v -keystore debug.keystore \
+          -storepass android -alias androiddebugkey \
+          -keypass android -keyalg RSA -keysize 2048 \
+          -validity 10000 -dname "CN=Android,O=Android,C=US"
+
+      - name: Extract split.zip
         run: |
           mkdir split
           unzip split.zip -d split
 
-      # ✅ Decompile base
-      - name: Decompile base APK
+      - name: Build Universal APKS
         run: |
-          apktool d split/base.apk -o base
+          java -jar bundletool.jar build-apks \
+            --mode=universal \
+            --output=output.apks \
+            --apks=split/base.apk \
+            --apks=split/split_config.arm64_v8a.apk \
+            --apks=split/split_config.in.apk \
+            --apks=split/split_config.ms.apk \
+            --apks=split/split_config.xxhdpi.apk \
+            --ks=debug.keystore \
+            --ks-pass=pass:android \
+            --ks-key-alias=androiddebugkey \
+            --key-pass=pass:android
 
-      # ✅ Disable split flag (important)
-      - name: Disable split flag
+      - name: Extract Universal APK
         run: |
-          sed -i 's/isSplitApk: true/isSplitApk: false/g' base/apktool.yml
+          unzip output.apks -d extracted
+          mv extracted/universal.apk universal.apk
 
-      # ✅ Merge ABI + DPI + Language splits
-      - name: Merge splits
-        run: |
-          for file in split/split_config*.apk; do
-            apktool d "$file" -o temp
-            if [ -d temp/lib ]; then
-              mkdir -p base/lib
-              cp -r temp/lib/* base/lib/
-            fi
-            if [ -d temp/res ]; then
-              cp -r temp/res/* base/res/
-            fi
-            rm -rf temp
-          done
-
-      # ✅ Build using aapt2 (required for modern apps)
-      - name: Build universal APK
-        run: |
-          apktool b base -o universal-unsigned.apk
-
-      # ✅ Generate debug keystore
-      - name: Generate debug keystore
-        run: |
-          keytool -genkey -v -keystore debug.keystore \
-          -storepass android \
-          -alias androiddebugkey \
-          -keypass android \
-          -keyalg RSA \
-          -keysize 2048 \
-          -validity 10000 \
-          -dname "CN=Android,O=Android,C=US"
-
-      # ✅ Align APK
-      - name: Align APK
-        run: |
-          zipalign -v 4 universal-unsigned.apk universal-aligned.apk
-
-      # ✅ Sign APK
-      - name: Sign APK
-        run: |
-          apksigner sign \
-          --ks debug.keystore \
-          --ks-pass pass:android \
-          --key-pass pass:android \
-          universal-aligned.apk
-
-      # ✅ Verify signature
-      - name: Verify APK
-        run: |
-          apksigner verify universal-aligned.apk
-
-      # ✅ Upload result
-      - name: Upload artifact
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: universal-apk
-          path: universal-aligned.apk
+          path: universal.apk
